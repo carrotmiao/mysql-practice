@@ -48,6 +48,40 @@ SELECT  product_id
 
 使用存储过程创建20个与 `shop.product` 表结构相同的表，如下图所示：
 
+```sql
+ -- 5.4
+USE shop; 
+DELIMITER &&
+DROP PROCEDURE IF EXISTS creat_table &&
+CREATE DEFINER=`root`@`localhost` PROCEDURE `create_table`() 
+BEGIN
+DECLARE i INT;
+DECLARE table_name VARCHAR(20);
+DECLARE table_pre VARCHAR(20);
+DECLARE sql_text VARCHAR(2000);
+SET i=1;
+SET table_name='';
+SET table_pre='table';
+SET sql_text='';
+WHILE i<21 DO
+IF i<10 THEN SET table_name=CONCAT(table_pre,'0',i);
+ELSE SET table_name=CONCAT(table_pre,i);
+END IF;
+SET sql_text=CONCAT('CREATE TABLE ', table_name, 'like shop.product');
+SELECT sql_text;
+SET @sql_text=sql_text;
+PREPARE stmt FROM @sql_text;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+SET i=i+1;
+END WHILE;
+END &&
+
+delimiter ;
+CALL `create_table`();
+```
+但是在create definer那边就一直报错，也不知道为什么。。。
+
 
 ## SOME NOTES
 
