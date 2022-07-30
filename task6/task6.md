@@ -632,3 +632,449 @@ ON t.client_id=u.users_id) u1
 GROUP BY request_at;
 -- 注：不能用count(status like 'cancelled')亲自实验出结果为总个数，大概是count里面不能有like这样模糊的东西吧。
 ```
+
+## Section B
+
+### 练习一：行转列
+假设 A B C 三位小朋友期末考试成绩如下所示：
+```plain
++-----+-----------+------|
+| name|   subject |score |
++-----+-----------+------|
+|  A  |  chinese  |  99  |
+|  A  |  math     |  98  |
+|  A  |  english  |  97  |
+|  B  |  chinese  |  92  |
+|  B  |  math     |  91  |
+|  B  |  english  |  90  |
+|  C  |  chinese  |  88  |
+|  C  |  math     |  87  |
+|  C  |  english  |  86  |
++-----+-----------+------|
+```
+请使用 SQL 代码将以上成绩转换为如下格式：
+```plain
++-----+-----------+------|---------|
+| name|   chinese | math | english |
++-----+-----------+------|---------|
+|  A  |     99    |  98  |    97   |
+|  B  |     92    |  91  |    90   |
+|  C  |     88    |  87  |    86   |
++-----+-----------+------|---------|
+```
+
+```sql
+-- SECTION B
+-- prac1 行转列用case或者if
+CREATE TABLE IF NOT EXISTS scores(
+name varchar(128) NOT NULL,
+subject varchar(128) NOT NULL,
+score double NOT NULL);
+
+INSERT INTO scores VALUES ('A','chinese',99),
+						  ('A','math',98),
+						  ('A','english',97),
+						  ('B','chinese',92),
+						  ('B','math',91),
+						  ('B','english',90),
+						  ('C','chinese',88),
+						  ('C','math',87),
+						  ('C','english',86);
+						  
+SELECT name,
+	   sum(CASE WHEN subject='chinese' THEN score ELSE NULL END) AS chinese,
+	   sum(CASE WHEN subject='math' THEN score ELSE NULL END) AS math,
+	   sum(CASE WHEN subject='english' THEN score ELSE NULL END) AS english
+  FROM scores 
+  GROUP BY name;
+```
+
+### 练习二：列转行
+假设 A B C 三位小朋友期末考试成绩如下所示：
+```plain
++-----+-----------+------|---------|
+| name|   chinese | math | english |
++-----+-----------+------|---------|
+|  A  |     99    |  98  |    97   |
+|  B  |     92    |  91  |    90   |
+|  C  |     88    |  87  |    86   |
++-----+-----------+------|---------|
+```
+请使用 SQL 代码将以上成绩转换为如下格式：
+```plain
++-----+-----------+------|
+| name|   subject |score |
++-----+-----------+------|
+|  A  |  chinese  |  99  |
+|  A  |  math     |  98  |
+|  A  |  english  |  97  |
+|  B  |  chinese  |  92  |
+|  B  |  math     |  91  |
+|  B  |  english  |  90  |
+|  C  |  chinese  |  88  |
+|  C  |  math     |  87  |
+|  C  |  english  |  86  |
++-----+-----------+------|
+```
+
+```sql
+-- prac2
+-- 没做出来 总结列转行要用union或者union all（union all保留重复行）
+ CREATE TABLE IF NOT EXISTS scores1(
+ name varchar(128) NOT NULL,
+ chinese double NOT NULL,
+ math double NOT NULL,
+ english double NOT NULL);
+
+ INSERT INTO scores1  
+ SELECT name,
+	   sum(CASE WHEN subject='chinese' THEN score ELSE NULL END) AS chinese,
+	   sum(CASE WHEN subject='math' THEN score ELSE NULL END) AS math,
+	   sum(CASE WHEN subject='english' THEN score ELSE NULL END) AS english
+  FROM scores 
+  GROUP BY name;
+  
+SELECT name,'chinese' AS subject,chinese AS score
+FROM scores1 
+UNION ALL
+SELECT name,'math' AS subject,math AS score
+FROM scores1 
+UNION ALL
+SELECT name,'english' AS subject,english AS score
+FROM scores1
+ORDER BY name ;-- 用group by没反应用order by居然成功了
+```
+
+### 练习三：谁是明星带货主播？
+假设，某平台2021年主播带货销售额日统计数据如下：
+
+表名 `anchor_sales`
+```plain
++-------------+------------+---------|
+| anchor_name |     date   |  sales  | 
++-------------+------------+---------|
+|      A      |  20210101  |  40000  |
+|      B      |  20210101  |  80000  |
+|      A      |  20210102  |  10000  |
+|      C      |  20210102  |  90000  |
+|      A      |  20210103  |   7500  |
+|      C      |  20210103  |  80000  |
++-------------+------------+---------|
+```
+定义：如果某主播的某日销售额占比达到该平台当日销售总额的 90% 及以上，则称该主播为明星主播，当天也称为明星主播日。
+
+请使用 SQL 完成如下计算：
+
+a. 2021年有多少个明星主播日？
+
+b. 2021年有多少个明星主播？
+
+```sql
+-- prac3
+CREATE TABLE IF NOT EXISTS anchor_sales(
+anchor_name char(1) NOT NULL,
+date date NOT NULL,
+sales double NOT NULL);
+INSERT INTO anchor_sales VALUES('A','20210101',40000),
+							   ('B','20210101',80000),
+							   ('A','20210102',10000),
+							   ('C','20210102',90000),
+							   ('A','20210103',7500),
+							   ('C','20210103',80000);
+							   
+-- prac3
+SELECT count(anchor_name) OVER (PARTITION BY date) AS count_name,
+	   count(date) AS count_date
+FROM (
+SELECT s.anchor_name,s.date,round(s.sales/s1.sum_sales,2) AS p
+FROM anchor_sales s
+INNER JOIN 
+(SELECT anchor_name,date, 
+sum(sales) OVER (PARTITION BY date) AS sum_sales
+FROM anchor_sales) s1
+ON s.anchor_name=s1.anchor_name
+AND s.date=s1.date
+WHERE round(s.sales/s1.sum_sales,2)>=0.9) total;
+```
+
+### 练习四：MySQL 中如何查看sql语句的执行计划？可以看到哪些信息？
+```sql
+-- prac4 这个不会，是看别人写的
+explain SELECT * FROM `anchor_sales`;
+```
+
+### 练习五：解释一下 SQL 数据库中 ACID 是指什么
+
+## Section C
+
+### 练习一：行转列
+
+假设有如下比赛结果：
+
+```plain
++--------------+-----------+
+|    cdate     |   result  |
++--------------+-----------+
+|  2021-01-01  |     胜    |
+|  2021-01-01  |     胜    |
+|  2021-01-01  |     负    |
+|  2021-01-03  |     胜    |
+|  2021-01-03  |     负    |
+|  2021-01-03  |     负    |
++------------+-------------+
+```
+
+请使用 SQL 将比赛结果转换为如下形式：
+
+```plain
++--------------+-----+-----|
+|  比赛日期     | 胜  | 负  |
++--------------+-----------+
+|  2021-01-01  |  2  |  1  |
+|  2021-01-03  |  1  |  2  |
++------------+-----------+
+```
+
+```sql
+-- section C
+-- prac1
+CREATE TABLE IF NOT EXISTS games(
+cdate date NOT NULL,
+result varchar(128) NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+INSERT INTO games VALUES('2021-01-01','胜'),
+						('2021-01-01','胜'),
+						('2021-01-01','负'),
+						('2021-01-03','胜'),
+						('2021-01-03','负'),
+						('2021-01-03','负');
+	
+					
+SELECT cdate AS '比赛日期',
+	   sum(CASE WHEN RESULT='胜' THEN 1 ELSE 0 END) AS '胜',
+	   sum(CASE WHEN RESULT='负' THEN 1 ELSE 0 END) AS '负'
+  FROM games 
+  GROUP BY cdate;
+```
+### 练习二：列转行
+
+假设有如下比赛结果：
+
+```plain
++--------------+-----+-----|
+|  比赛日期     | 胜  | 负  |
++--------------+-----------+
+|  2021-01-01  |  2  |  1  |
+|  2021-01-03  |  1  |  2  |
++------------+-----------+
+```
+
+请使用 SQL 将比赛结果转换为如下形式：
+
+```plain
++--------------+-----------+
+|    cdate     |   result  |
++--------------+-----------+
+|  2021-01-01  |     胜    |
+|  2021-01-01  |     胜    |
+|  2021-01-01  |     负    |
+|  2021-01-03  |     胜    |
+|  2021-01-03  |     负    |
+|  2021-01-03  |     负    |
++------------+-------------+
+```
+
+```sql
+-- prac2 不会做。。。。
+CREATE TABLE IF NOT EXISTS games1(
+比赛日期 date NOT NULL,
+胜     integer NOT NULL,
+负     integer NOT NULL) DEFAULT charset=utf8mb4;
+
+INSERT INTO games1( 
+SELECT cdate AS '比赛日期',
+	   sum(CASE WHEN RESULT='胜' THEN 1 ELSE 0 END) AS '胜',
+	   sum(CASE WHEN RESULT='负' THEN 1 ELSE 0 END) AS '负'
+  FROM games 
+  GROUP BY cdate);
+-- 改参数指出法二的缺陷
+UPDATE games1 
+SET 胜=3,负=0
+WHERE 比赛日期='2021-01-01';
+
+SELECT * FROM games1;
+
+-- 解法一：利用mysql.help_topic的id进行行转列
+SELECT g.比赛日期 AS cdate,'胜' AS RESULT
+FROM games1 g
+INNER JOIN mysql.help_topic ht 
+ON ht.help_topic_id <g.胜
+UNION ALL 
+SELECT g.比赛日期 AS cdate,'负' AS RESULT
+FROM games1 g
+INNER JOIN mysql.help_topic ht 
+ON ht.help_topic_id <g.负
+ORDER BY cdate;
+
+-- 解法二：直接加一行用来计数,但是只能适用于一天胜两场，没有实用性
+SELECT cdate,RESULT 
+FROM
+(
+SELECT * FROM 
+(SELECT 比赛日期 AS cdate,'胜' AS RESULT,胜 AS times
+FROM games1 
+UNION 
+SELECT 比赛日期 AS cdate,'负' AS RESULT,负 AS times
+FROM games1) a
+UNION ALL
+SELECT * FROM 
+(SELECT 比赛日期 AS cdate,'胜' AS RESULT,胜-1 AS times
+FROM games1 
+UNION 
+SELECT 比赛日期 AS cdate,'负' AS RESULT,负-1 AS times
+FROM games1) b) c
+WHERE times>0
+ORDER BY cdate;
+```
+
+### 练习三：连续登录
+
+有用户表行为记录表t_act_records表，包含两个字段：uid（用户ID），imp_date（日期）
+
+1. 计算2021年每个月，每个用户连续登录的最多天数
+2. 计算2021年每个月，连续2天都有登录的用户名单
+3. 计算2021年每个月，连续5天都有登录的用户数
+
+构造表mysql如下：
+```sql
+DROP TABLE if EXISTS t_act_records;
+CREATE TABLE t_act_records
+(uid  VARCHAR(20),
+imp_date DATE);
+
+INSERT INTO t_act_records VALUES('u1001', 20210101);
+INSERT INTO t_act_records VALUES('u1002', 20210101);
+INSERT INTO t_act_records VALUES('u1003', 20210101);
+INSERT INTO t_act_records VALUES('u1003', 20210102);
+INSERT INTO t_act_records VALUES('u1004', 20210101);
+INSERT INTO t_act_records VALUES('u1004', 20210102);
+INSERT INTO t_act_records VALUES('u1004', 20210103);
+INSERT INTO t_act_records VALUES('u1004', 20210104);
+INSERT INTO t_act_records VALUES('u1004', 20210105);
+```
+
+```sql
+-- (1)
+-- 窗函数lead前移
+SELECT uid,max(cnt) AS max_consecutive_day
+FROM(
+SELECT uid,
+       sum(CASE WHEN date_sub(p.NEXT,INTERVAL 1 DAY)=p.imp_date THEN 1 ELSE 0 END)+1
+       AS cnt
+FROM(
+SELECT uid,imp_date,
+	   LEAD(imp_date,1) OVER (PARTITION BY uid ORDER BY imp_date) AS next
+  FROM t_act_records) p
+ GROUP BY uid) p1
+GROUP BY uid;
+
+-- (2)
+SELECT uid,max_consecutive_day AS mcd2
+FROM(
+SELECT uid,max(cnt) AS max_consecutive_day
+FROM(
+SELECT uid,
+       sum(CASE WHEN date_sub(p.NEXT,INTERVAL 1 DAY)=p.imp_date THEN 1 ELSE 0 END)+1
+       AS cnt
+FROM(
+SELECT uid,imp_date,
+	   LEAD(imp_date,1) OVER (PARTITION BY uid ORDER BY imp_date) AS next
+  FROM t_act_records) p
+ GROUP BY uid) p1
+GROUP BY uid) p2
+WHERE p2.max_consecutive_day>=2;
+-- (3)
+SELECT uid,max_consecutive_day AS mcd2
+FROM(
+SELECT uid,max(cnt) AS max_consecutive_day
+FROM(
+SELECT uid,
+       sum(CASE WHEN date_sub(p.NEXT,INTERVAL 1 DAY)=p.imp_date THEN 1 ELSE 0 END)+1
+       AS cnt
+FROM(
+SELECT uid,imp_date,
+	   LEAD(imp_date,1) OVER (PARTITION BY uid ORDER BY imp_date) AS next
+  FROM t_act_records) p
+ GROUP BY uid) p1
+GROUP BY uid) p2
+WHERE p2.max_consecutive_day>=5;
+```
+
+## 练习四：用户购买商品推荐
+
+假设现在需要根据算法给每个 `user_id` 推荐购买商品，推荐算法比较简单，推荐和他相似的用户购买过的 `product` 即可，说明如下：
+- 排除用户自己购买过的商品
+- 相似用户定义：曾经购买过 2 种或 2 种以上的相同的商品
+
+输入表：`orders`
+```plain
++---------+------------+
+| user_id | product_id |
++---------+------------+
+|     123 |          1 |
+|     123 |          2 |
+|     123 |          3 |
+|     456 |          1 |
+|     456 |          2 |
+|     456 |          4 |
++---------+------------+
+```
+
+输出表：
+```plain
++---------+------------+
+| user_id | product_id |
++---------+------------+
+|     123 |          4 |
+|     456 |          3 |
++---------+------------+
+```
+
+```sql
+-- prac4
+CREATE TABLE IF NOT EXISTS orders(
+user_id integer NOT NULL,
+product_id integer NOT NULL);
+
+INSERT INTO orders values(123,1),(123,2),(123,3),(456,1),(456,2),(456,4);
+
+SELECT * FROM orders;
+
+SELECT (CASE WHEN MOD(user_id,2)<>0 THEN user_id+333 ELSE user_id-333 END) AS user_id,product_id
+FROM (
+SELECT * 
+FROM (
+SELECT * FROM orders WHERE user_id=123) u1
+WHERE u1.product_id NOT IN (SELECT product_id FROM orders WHERE user_id=456) 
+UNION -- union计算应该是并行的，因为在子句中用另一个子句的表格会报错
+SELECT * 
+FROM (
+SELECT * FROM orders WHERE user_id=456) u2
+WHERE u2.product_id NOT IN (SELECT product_id FROM orders WHERE user_id=123) -- 得到两表的对称差
+)u3
+ORDER BY user_id;
+-- 此做法并没有考虑到相似用户的两种及两种以上相似商品，只是默认两个users是相似用户
+```
+
+### 练习五：hive 数据倾斜的产生原因及优化策略？
+
+
+### 练习六：LEFT JOIN 是否可能会出现多出的行？为什么？
+
+假设 t1 表有6行（关联列 name 有2行为空），t2 表有6行（关联列 name 有3行为空）,
+
+那么 `SELECT * FROM t1 LEFT JOIN t2 on t1.name = t2.name` 会返回多少行结果？
+
+可以参考下图
+
+t1 表：![图片](./img/Question_C/C05A.jpg)     t2 表：![图片](./img/Question_C/C05B.jpg)
